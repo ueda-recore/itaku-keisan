@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>委託販売 精算書ジェネレーター</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+  :root {
+    --bg:#0f0f0f; --surface:#1a1a1a; --surface2:#222;
+    --border:#2e2e2e; --accent:#c8f550; --accent2:#4af0c8;
+    --text:#f0f0f0; --text2:#888; --danger:#ff5f5f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;padding:0 0 80px;}
+  header{border-bottom:1px solid var(--border);padding:20px 32px;display:flex;align-items:center;gap:16px;position:sticky;top:0;background:var(--bg);z-index:100;}
+  .logo-mark{width:36px;height:36px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:#000;}
+  header h1{font-size:15px;font-weight:500;letter-spacing:.05em;}
+  header span{font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;}
+  .container{max-width:960px;margin:0 auto;padding:40px 24px;display:grid;gap:32px;}
+  .section{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  .section-header{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+  .step-badge{width:24px;height:24px;background:var(--accent);color:#000;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;flex-shrink:0;}
+  .section-header h2{font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;}
+  .section-body{padding:24px;}
+  .drop-zone{border:2px dashed var(--border);border-radius:10px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);}
+  .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(200,245,80,.04);}
+  .drop-zone .icon{font-size:36px;margin-bottom:12px;}
+  .drop-zone p{color:var(--text2);font-size:13px;line-height:1.8;}
+  .drop-zone strong{color:var(--accent);}
+  #fileInput{display:none;}
+  .mapping-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:600px){.mapping-grid{grid-template-columns:1fr;}}
+  .field-row{display:flex;flex-direction:column;gap:6px;}
+  .field-row label{font-size:11px;color:var(--text2);letter-spacing:.06em;text-transform:uppercase;font-family:'DM Mono',monospace;}
+  .field-row select,.field-row input{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:9px 12px;font-size:13px;font-family:'Noto Sans JP',sans-serif;outline:none;transition:border-color .2s;width:100%;}
+  .field-row select:focus,.field-row input:focus{border-color:var(--accent);}
+  .rate-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .rate-table th{background:var(--surface2);padding:9px 14px;text-align:left;color:var(--text2);font-weight:400;font-size:11px;border-bottom:1px solid var(--border);letter-spacing:.05em;font-family:'DM Mono',monospace;}
+  .rate-table td{padding:9px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .rate-table tr:last-child td{border-bottom:none;}
+  .rate-table .name-cell{font-weight:500;color:var(--text);}
+  .rate-table .count-cell{color:var(--accent2);font-family:'DM Mono',monospace;font-size:12px;}
+  .rate-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:13px;width:90px;text-align:right;outline:none;font-family:'DM Mono',monospace;}
+  .rate-input:focus{border-color:var(--accent);}
+  .btn-add{background:none;border:1px dashed var(--border);color:var(--text2);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans JP',sans-serif;transition:all .15s;margin-top:12px;width:100%;}
+  .btn-add:hover{border-color:var(--accent2);color:var(--accent2);}
+  .btn-icon{background:none;border:1px solid var(--border);color:var(--text2);width:28px;height:28px;border-radius:5px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+  .btn-icon:hover{border-color:var(--danger);color:var(--danger);}
+  .preview-scroll{overflow-x:auto;max-height:260px;overflow-y:auto;border-radius:8px;border:1px solid var(--border);}
+  .preview-table{width:100%;border-collapse:collapse;font-size:12px;font-family:'DM Mono',monospace;}
+  .preview-table th{background:var(--surface2);padding:8px 12px;text-align:left;color:var(--text2);font-weight:400;font-size:11px;border-bottom:1px solid var(--border);}
+  .preview-table td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--text);}
+  .preview-table tr:last-child td{border-bottom:none;}
+  .generate-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;background:var(--accent);color:#000;border:none;border-radius:10px;font-size:15px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all .2s;letter-spacing:.04em;}
+  .generate-btn:hover{background:#d8ff60;transform:translateY(-1px);box-shadow:0 8px 24px rgba(200,245,80,.2);}
+  .generate-btn:disabled{background:var(--border);color:var(--text2);cursor:not-allowed;transform:none;box-shadow:none;}
+  .result-cards{display:flex;flex-direction:column;gap:10px;}
+  .result-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .result-info{flex:1;}
+  .result-info .r-name{font-size:14px;font-weight:500;margin-bottom:3px;}
+  .result-info .r-meta{font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;}
+  .result-actions{display:flex;gap:8px;}
+  .btn-dl{padding:7px 16px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid;font-family:'Noto Sans JP',sans-serif;font-weight:500;transition:all .15s;}
+  .btn-xlsx{border-color:var(--accent);color:var(--accent);background:rgba(200,245,80,.06);}
+  .btn-xlsx:hover{background:rgba(200,245,80,.18);}
+  .btn-pdf{border-color:var(--accent2);color:var(--accent2);background:rgba(74,240,200,.06);}
+  .btn-pdf:hover{background:rgba(74,240,200,.18);}
+  .alert{padding:12px 16px;border-radius:8px;font-size:13px;border:1px solid;}
+  .alert-info{border-color:var(--accent2);color:var(--accent2);background:rgba(74,240,200,.06);}
+  .divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
+  .hidden{display:none!important;}
+  #status{font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;text-align:center;padding:8px;}
+  .tag{background:rgba(74,240,200,.12);color:var(--accent2);border-radius:4px;padding:2px 8px;font-size:11px;font-family:'DM Mono',monospace;}
+  .pct-label{color:var(--text2);font-size:12px;margin-left:4px;}
+  /* PDF Modal */
+  #pdfModal{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;flex-direction:column;}
+  #pdfModalHeader{background:#1a1a1a;border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px;}
+  #pdfModalTitle{font-size:14px;font-weight:500;flex:1;}
+  .modal-actions{display:flex;gap:10px;align-items:center;}
+  #pdfIframe{flex:1;border:none;background:#fff;width:100%;}
+  .btn-modal-close{background:none;border:1px solid var(--border);color:var(--text);padding:8px 18px;border-radius:6px;cursor:pointer;font-size:13px;font-family:'Noto Sans JP',sans-serif;transition:all .15s;}
+  .btn-modal-close:hover{border-color:var(--danger);color:var(--danger);}
+  .btn-modal-print{background:var(--accent);border:none;color:#000;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;transition:all .15s;}
+  .btn-modal-print:hover{background:#d8ff60;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">委</div>
+  <div>
+    <h1>委託販売 精算書ジェネレーター</h1>
+    <span>RECORE データ → 委託者別 Excel / PDF</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="section">
+    <div class="section-header"><div class="step-badge">1</div><h2>ファイルを読み込む</h2></div>
+    <div class="section-body">
+      <div class="drop-zone" id="dropZone">
+        <div class="icon">📂</div>
+        <p>CSV / Excel（.xlsx）をドラッグ＆ドロップ<br>または <strong>クリックして選択</strong></p>
+      </div>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+      <div id="csvStatus" class="hidden" style="margin-top:14px;"></div>
+    </div>
+  </div>
+
+  <div class="section hidden" id="mappingSection">
+    <div class="section-header"><div class="step-badge">2</div><h2>列の対応を設定</h2></div>
+    <div class="section-body">
+      <div class="mapping-grid">
+        <div class="field-row"><label>委託者名（会員名）</label><select id="colConsignor"></select></div>
+        <div class="field-row"><label>商品名 / 在庫コード</label><select id="colProduct"></select></div>
+        <div class="field-row"><label>売価（金額）</label><select id="colPrice"></select></div>
+        <div class="field-row"><label>数量</label><select id="colQty"></select></div>
+        <div class="field-row"><label>委託料（計算済み・任意）</label><select id="colFee"></select></div>
+        <div class="field-row"><label>販売方法（任意）</label><select id="colMethod"></select></div>
+        <div class="field-row"><label>対象期間</label><input type="month" id="periodInput"></div>
+      </div>
+      <hr class="divider">
+      <div id="csvPreviewWrap" class="hidden">
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">データプレビュー（先頭5行）</p>
+        <div class="preview-scroll" id="csvPreview"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section hidden" id="rateSection">
+    <div class="section-header"><div class="step-badge">3</div><h2>委託者ごとの委託料率を設定</h2></div>
+    <div class="section-body">
+      <table class="rate-table">
+        <thead><tr><th>委託者名</th><th>販売件数</th><th>委託料率（%）</th><th></th></tr></thead>
+        <tbody id="consignorsList"></tbody>
+      </table>
+      <button class="btn-add" id="btnAddConsignor">＋ 委託者を手動追加</button>
+      <hr class="divider">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="field-row" style="flex:0 0 auto;">
+          <label>デフォルト委託料率（%）</label>
+          <input type="number" id="defaultRate" value="8.8" step="0.1" min="0" max="100" style="width:120px;">
+        </div>
+        <p style="font-size:11px;color:var(--text2);margin-top:16px;">※ 上で未設定の委託者に適用されます</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section hidden" id="generateSection">
+    <div class="section-header"><div class="step-badge">4</div><h2>精算書を生成</h2></div>
+    <div class="section-body">
+      <div id="previewSummary" style="margin-bottom:18px;"></div>
+      <button class="generate-btn" id="btnGenerate" disabled>⚡ 精算書を一括生成する</button>
+      <div id="status" class="hidden"></div>
+    </div>
+  </div>
+
+  <div class="section hidden" id="resultsSection">
+    <div class="section-header"><div class="step-badge">✓</div><h2>生成完了 — ダウンロード</h2></div>
+    <div class="section-body">
+      <div class="alert alert-info" style="margin-bottom:16px;">📄 PDFボタン → プレビュー表示。「印刷 / PDFで保存」でPDF保存できます。</div>
+      <div class="result-cards" id="resultCards"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PDF Modal -->
+<div id="pdfModal" class="hidden">
+  <div id="pdfModalHeader">
+    <span id="pdfModalTitle"></span>
+    <div class="modal-actions">
+      <button class="btn-modal-print" id="btnModalPrint">🖨 印刷 / PDFで保存</button>
+      <button class="btn-modal-close" id="btnModalClose">✕ 閉じる</button>
+    </div>
+  </div>
+  <iframe id="pdfIframe"></iframe>
+</div>
+
+<script>
+// ============================================================
+// Helpers
+// ============================================================
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function downloadXlsx(xlsxArr, filename) {
+  // Base64エンコードしてdata URIでダウンロード
+  var binary = '';
+  var bytes = new Uint8Array(xlsxArr);
+  for (var i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  var base64 = btoa(binary);
+  var a = document.createElement('a');
+  a.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + base64;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function showPdfModal(htmlStr, name) {
+  document.getElementById('pdfModalTitle').textContent = '精算書プレビュー — ' + name;
+  document.getElementById('pdfIframe').srcdoc = htmlStr;
+  document.getElementById('pdfModal').classList.remove('hidden');
+}
+
+// モーダルのイベント（DOMContentLoaded後に確実に登録）
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('btnModalClose').addEventListener('click', function() {
+    document.getElementById('pdfModal').classList.add('hidden');
+    document.getElementById('pdfIframe').srcdoc = '';
+  });
+  document.getElementById('btnModalPrint').addEventListener('click', function() {
+    var iframe = document.getElementById('pdfIframe');
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  });
+});
+
+// ============================================================
+// State
+// ============================================================
+var csvHeaders = [];
+var csvRows = [];
+var generatedFiles = [];
+
+// ============================================================
+// Upload
+// ============================================================
+document.getElementById('dropZone').addEventListener('click', function(){ document.getElementById('fileInput').click(); });
+document.getElementById('dropZone').addEventListener('dragover', function(e){ e.preventDefault(); this.classList.add('drag-over'); });
+document.getElementById('dropZone').addEventListener('dragleave', function(){ this.classList.remove('drag-over'); });
+document.getElementById('dropZone').addEventListener('drop', function(e){
+  e.preventDefault(); this.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+document.getElementById('fileInput').addEventListener('change', function(e){
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+function handleFile(file) {
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'xlsx' || ext === 'xls') {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var data = new Uint8Array(e.target.result);
+        var wb = XLSX.read(data, {type:'array'});
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var json = XLSX.utils.sheet_to_json(ws, {defval:''});
+        if (!json.length) { alert('データが見つかりません'); return; }
+        csvHeaders = Object.keys(json[0]);
+        csvRows = json.map(function(row){
+          var obj = {};
+          csvHeaders.forEach(function(h){ obj[h] = String(row[h] == null ? '' : row[h]); });
+          return obj;
+        });
+        showStatus(file.name, csvRows.length, csvHeaders.length);
+        setupMapping();
+      } catch(err) { alert('読み込みエラー: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    var reader2 = new FileReader();
+    reader2.onload = function(e){ parseCSV(e.target.result, file.name); };
+    reader2.readAsText(file, 'UTF-8');
+  }
+}
+
+function showStatus(filename, rows, cols) {
+  var el = document.getElementById('csvStatus');
+  el.className = 'alert alert-info';
+  el.textContent = '✓ ' + filename + ' — ' + rows + ' 件（列数: ' + cols + '）';
+  el.classList.remove('hidden');
+}
+
+function parseCSV(text, filename) {
+  var lines = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if (lines.length < 2) { alert('行数が少なすぎます'); return; }
+  var delim = lines[0].includes('\t') ? '\t' : ',';
+  function parseRow(row) {
+    var result=[], inQ=false, cur='';
+    for (var i=0;i<row.length;i++){
+      var ch=row[i];
+      if(ch==='"'){inQ=!inQ;}
+      else if(ch===delim&&!inQ){result.push(cur.trim());cur='';}
+      else cur+=ch;
+    }
+    result.push(cur.trim()); return result;
+  }
+  csvHeaders = parseRow(lines[0]);
+  csvRows = lines.slice(1).map(function(line){
+    var vals=parseRow(line), obj={};
+    csvHeaders.forEach(function(h,i){ obj[h]=vals[i]||''; });
+    return obj;
+  }).filter(function(r){ return Object.values(r).some(function(v){return v;}); });
+  showStatus(filename||'ファイル', csvRows.length, csvHeaders.length);
+  setupMapping();
+}
+
+// ============================================================
+// Mapping
+// ============================================================
+function setupMapping() {
+  var opts = ['（選択しない）'].concat(csvHeaders);
+  ['colConsignor','colProduct','colPrice','colQty','colFee','colMethod'].forEach(function(id){
+    var sel = document.getElementById(id);
+    sel.innerHTML = opts.map(function(h){ return '<option value="'+escHtml(h)+'">'+escHtml(h)+'</option>'; }).join('');
+  });
+  var autoMap = {
+    colConsignor: ['会員氏名','委託者','会員名','氏名','member','consignor'],
+    colProduct:   ['商品名','在庫コード','商品','product','item','sku'],
+    colPrice:     ['販売小計','売価','金額','販売価格','price','amount','売上'],
+    colQty:       ['仕入商品販売済み点数','数量','qty','quantity','個数','点数'],
+    colFee:       ['委託料小計','委託料','fee','commission'],
+    colMethod:    ['販売方法','method','sales_type'],
+  };
+  Object.keys(autoMap).forEach(function(id){
+    var sel = document.getElementById(id);
+    var match = csvHeaders.find(function(h){
+      return autoMap[id].some(function(k){ return h.toLowerCase().includes(k.toLowerCase()); });
+    });
+    if (match) sel.value = match;
+  });
+  var now = new Date();
+  document.getElementById('periodInput').value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  document.getElementById('mappingSection').classList.remove('hidden');
+  updatePreview(); setupRates();
+  ['colConsignor','colProduct','colPrice','colQty','colFee','colMethod'].forEach(function(id){
+    document.getElementById(id).addEventListener('change', function(){ updatePreview(); setupRates(); });
+  });
+}
+
+function updatePreview() {
+  var cols = ['colConsignor','colProduct','colPrice','colQty'].map(function(id){
+    return document.getElementById(id).value;
+  }).filter(function(v){ return v && v!=='（選択しない）'; });
+  var wrap = document.getElementById('csvPreviewWrap');
+  if (!cols.length) { wrap.classList.add('hidden'); return; }
+  var rows = csvRows.slice(0,5);
+  var thead = '<tr>'+cols.map(function(c){ return '<th>'+escHtml(c)+'</th>'; }).join('')+'</tr>';
+  var tbody = rows.map(function(r){
+    return '<tr>'+cols.map(function(c){ return '<td>'+escHtml(r[c]||'')+'</td>'; }).join('')+'</tr>';
+  }).join('');
+  document.getElementById('csvPreview').innerHTML = '<table class="preview-table"><thead>'+thead+'</thead><tbody>'+tbody+'</tbody></table>';
+  wrap.classList.remove('hidden');
+}
+
+// ============================================================
+// Rate Setup
+// ============================================================
+function setupRates() {
+  var colConsignor = document.getElementById('colConsignor').value;
+  if (!colConsignor || colConsignor==='（選択しない）') { document.getElementById('rateSection').classList.add('hidden'); return; }
+  var existing = {};
+  document.querySelectorAll('#consignorsList tr[data-name]').forEach(function(tr){
+    var inp = tr.querySelector('.rate-input');
+    if (inp) existing[tr.getAttribute('data-name')] = inp.value;
+  });
+  var counts = {};
+  csvRows.forEach(function(r){ var n=r[colConsignor]||'（不明）'; counts[n]=(counts[n]||0)+1; });
+  var tbody = document.getElementById('consignorsList');
+  tbody.innerHTML = '';
+  Object.keys(counts).forEach(function(name){
+    tbody.appendChild(makeRateRow(name, counts[name], existing[name]||''));
+  });
+  document.getElementById('rateSection').classList.remove('hidden');
+  document.getElementById('generateSection').classList.remove('hidden');
+  updateGeneratePreview();
+}
+
+function makeRateRow(name, count, rate) {
+  var tr = document.createElement('tr');
+  tr.setAttribute('data-name', name);
+  tr.innerHTML =
+    '<td class="name-cell">'+escHtml(name)+'</td>'+
+    '<td class="count-cell"><span class="tag">'+escHtml(String(count||0))+'件</span></td>'+
+    '<td><input class="rate-input" type="number" value="'+escHtml(rate||'')+'" placeholder="8.8" step="0.1" min="0" max="100"><span class="pct-label">%</span></td>'+
+    '<td><button class="btn-icon" title="削除">✕</button></td>';
+  tr.querySelector('.btn-icon').addEventListener('click', function(){ tr.remove(); });
+  tr.querySelector('.rate-input').addEventListener('input', updateGeneratePreview);
+  return tr;
+}
+
+document.getElementById('btnAddConsignor').addEventListener('click', function(){
+  var tr = document.createElement('tr');
+  tr.setAttribute('data-name','');
+  tr.innerHTML =
+    '<td><input type="text" class="rate-input" placeholder="委託者名" style="width:160px;text-align:left;"></td>'+
+    '<td></td>'+
+    '<td><input class="rate-input" type="number" placeholder="8.8" step="0.1" min="0" max="100"><span class="pct-label">%</span></td>'+
+    '<td><button class="btn-icon">✕</button></td>';
+  tr.querySelector('.btn-icon').addEventListener('click', function(){ tr.remove(); });
+  document.getElementById('consignorsList').appendChild(tr);
+});
+
+document.getElementById('defaultRate').addEventListener('input', updateGeneratePreview);
+
+function getRateMap() {
+  var map = {};
+  document.querySelectorAll('#consignorsList tr').forEach(function(tr){
+    var name = tr.getAttribute('data-name');
+    var inputs = tr.querySelectorAll('input');
+    var rateVal;
+    if (name === '') {
+      name = inputs[0] ? inputs[0].value.trim() : '';
+      rateVal = inputs[1] ? parseFloat(inputs[1].value) : NaN;
+    } else {
+      rateVal = inputs[0] ? parseFloat(inputs[0].value) : NaN;
+    }
+    if (name) map[name] = isNaN(rateVal) ? null : rateVal/100;
+  });
+  return map;
+}
+
+function updateGeneratePreview() {
+  var colConsignor = document.getElementById('colConsignor').value;
+  if (!colConsignor || colConsignor==='（選択しない）') return;
+  var counts = {};
+  csvRows.forEach(function(r){ var n=r[colConsignor]||'（不明）'; counts[n]=(counts[n]||0)+1; });
+  var n = Object.keys(counts).length;
+  document.getElementById('previewSummary').innerHTML =
+    '<div class="alert alert-info">📋 '+n+' 名分の精算書を生成します（合計 '+csvRows.length+' 件）</div>';
+  document.getElementById('btnGenerate').disabled = false;
+}
+
+// ============================================================
+// Generate
+// ============================================================
+document.getElementById('btnGenerate').addEventListener('click', generateAll);
+
+function generateAll() {
+  var colConsignor = document.getElementById('colConsignor').value;
+  var colProduct   = document.getElementById('colProduct').value;
+  var colPrice     = document.getElementById('colPrice').value;
+  var colQty       = document.getElementById('colQty').value;
+  var colFee       = document.getElementById('colFee').value;
+  var colMethod    = document.getElementById('colMethod').value;
+  var period       = document.getElementById('periodInput').value;
+  var defaultRate  = parseFloat(document.getElementById('defaultRate').value)/100 || 0.088;
+  var rateMap      = getRateMap();
+  var groups = {};
+  csvRows.forEach(function(r){ var n=r[colConsignor]||'（不明）'; if(!groups[n])groups[n]=[]; groups[n].push(r); });
+  var status = document.getElementById('status');
+  status.classList.remove('hidden'); status.textContent = '生成中...';
+  document.getElementById('resultCards').innerHTML = '';
+  generatedFiles = [];
+  var names = Object.keys(groups), i = 0;
+
+  function processNext() {
+    if (i >= names.length) {
+      status.textContent = '✓ '+names.length+' 名分の精算書を生成しました';
+      document.getElementById('resultsSection').classList.remove('hidden');
+      document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
+      return;
+    }
+    var name = names[i++];
+    var rows = groups[name];
+    var rate = (name in rateMap && rateMap[name]!==null) ? rateMap[name] : defaultRate;
+    status.textContent = '生成中: '+name+' ('+i+'/'+names.length+')';
+    try {
+      var result = buildFiles(name, rows, rate, colProduct, colPrice, colQty, colFee, colMethod, period);
+      var fileIdx = generatedFiles.length;
+      generatedFiles.push(result);
+      var card = document.createElement('div');
+      card.className = 'result-card';
+      card.innerHTML =
+        '<div class="result-info">'+
+          '<div class="r-name">'+escHtml(name)+'</div>'+
+          '<div class="r-meta">'+rows.length+'件　売上: ¥'+result.totalSales.toLocaleString()+'　委託料: ¥'+result.totalFee.toLocaleString()+'　支払: ¥'+result.payAmount.toLocaleString()+'</div>'+
+        '</div>'+
+        '<div class="result-actions">'+
+          '<button class="btn-dl btn-xlsx">Excel</button>'+
+          '<button class="btn-dl btn-pdf">PDF</button>'+
+        '</div>';
+      (function(idx){
+        card.querySelector('.btn-xlsx').addEventListener('click', function(){
+          downloadXlsx(generatedFiles[idx].xlsxArr, '委託販売精算書_'+generatedFiles[idx].name+'.xlsx');
+        });
+        card.querySelector('.btn-pdf').addEventListener('click', function(){
+          showPdfModal(generatedFiles[idx].pdfHtml, generatedFiles[idx].name);
+        });
+      })(fileIdx);
+      document.getElementById('resultCards').appendChild(card);
+    } catch(err) {
+      status.textContent = 'エラー: '+name+' — '+err.message;
+      console.error(err);
+    }
+    setTimeout(processNext, 10);
+  }
+  processNext();
+}
+
+// ============================================================
+// Build Files
+// ============================================================
+function buildFiles(consignorName, rows, rate, colProduct, colPrice, colQty, colFee, colMethod, period) {
+  var today = new Date();
+  var dateStr = today.getFullYear()+'/'+String(today.getMonth()+1).padStart(2,'0')+'/'+String(today.getDate()).padStart(2,'0');
+  var periodStr = period ? period.replace('-','年')+'月分' : '';
+  var hasFeeCol = colFee && colFee!=='（選択しない）';
+  var totalSales = 0;
+  var items = rows.map(function(r,idx){
+    var price = parseFloat(String(r[colPrice]||'0').replace(/[¥,￥]/g,''))||0;
+    var qty   = parseInt(r[colQty]||'1')||1;
+    var sub   = price*qty;
+    var fee   = hasFeeCol ? (parseFloat(String(r[colFee]||'0').replace(/[¥,￥]/g,''))||0) : Math.round(sub*rate);
+    totalSales += sub;
+    return { no:idx+1, product:r[colProduct]||'',
+      method:(colMethod&&colMethod!=='（選択しない）')?(r[colMethod]||''):'',
+      qty:qty, subtotal:sub, rate:hasFeeCol?(sub>0?fee/sub:rate):rate, fee:fee, pay:sub-fee };
+  });
+  var totalFee = items.reduce(function(s,it){return s+it.fee;},0);
+  var payAmount = totalSales - totalFee;
+
+  // Excel
+  var wsData = [
+    ['委託販売　精算書','','','','','','',''],[], ['','','','','','','',dateStr],[],
+    ['会員名（氏名）','',consignorName,'','','','',''],
+    [periodStr?'対象期間: '+periodStr:'','','','','','','',''], [],
+    ['No.','商品名 / 在庫コード','','販売方法','売価','委託料率','委託料','支払額']
+  ];
+  items.forEach(function(it){ wsData.push([it.no,it.product,'',it.method,it.subtotal,it.rate,it.fee,it.pay]); });
+  var ec = Math.max(0,10-items.length);
+  for(var e=0;e<ec;e++) wsData.push(['','','','','','','','']);
+  wsData.push([]); wsData.push(['','','','','','合計売上','',totalSales]);
+  wsData.push(['','','','','','合計委託料','',totalFee]);
+  wsData.push(['','','','','','お支払金額','',payAmount]);
+  wsData.push([]); wsData.push(['支払方法：銀行振込','','','','','','','']);
+  wsData.push(['支払予定日：','','','','','','','']); wsData.push(['備考：','','','','','','','']);
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:5},{wch:28},{wch:6},{wch:12},{wch:12},{wch:10},{wch:12},{wch:12}];
+  var M = function(r1,c1,r2,c2){return{s:{r:r1,c:c1},e:{r:r2,c:c2}};};
+  var mg = [M(0,0,0,7),M(2,0,2,6),M(4,0,4,1),M(4,2,4,7),M(5,0,5,7),M(7,1,7,2)];
+  items.forEach(function(_,i){mg.push(M(8+i,1,8+i,2));});
+  for(var f=0;f<ec;f++) mg.push(M(8+items.length+f,1,8+items.length+f,2));
+  ws['!merges'] = mg;
+  items.forEach(function(_,i){
+    var r=8+i;
+    ['¥#,##0','0.0%','¥#,##0','¥#,##0'].forEach(function(fmt,ci){
+      var c=ws[XLSX.utils.encode_cell({r:r,c:4+ci})]; if(c) c.z=fmt;
+    });
+  });
+  var sr=8+items.length+ec+1;
+  [0,1,2].forEach(function(o){ var c=ws[XLSX.utils.encode_cell({r:sr+o,c:7})]; if(c) c.z='¥#,##0'; });
+  XLSX.utils.book_append_sheet(wb, ws, '精算書');
+  var xlsxArr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+
+  // PDF
+  var pdfHtml = buildPdfHtml(consignorName, items, totalSales, totalFee, payAmount, dateStr, periodStr);
+  return { name:consignorName, xlsxArr:xlsxArr, pdfHtml:pdfHtml, totalSales:totalSales, totalFee:totalFee, payAmount:payAmount };
+}
+
+function buildPdfHtml(name, items, totalSales, totalFee, payAmount, dateStr, periodStr) {
+  var rows = items.map(function(it){
+    return '<tr><td style="text-align:center">'+it.no+'</td><td>'+escHtml(it.product)+'</td>'+
+      '<td style="text-align:center">'+escHtml(it.method)+'</td>'+
+      '<td style="text-align:right">¥'+it.subtotal.toLocaleString()+'</td>'+
+      '<td style="text-align:center">'+(it.rate*100).toFixed(1)+'%</td>'+
+      '<td style="text-align:right">¥'+it.fee.toLocaleString()+'</td>'+
+      '<td style="text-align:right">¥'+it.pay.toLocaleString()+'</td></tr>';
+  }).join('');
+  var empty=Math.max(0,10-items.length);
+  for(var e=0;e<empty;e++) rows+='<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'+
+    '@page{size:A4;margin:18mm 15mm;}*{box-sizing:border-box;}'+
+    'body{font-family:"MS Gothic","Hiragino Kaku Gothic Pro",sans-serif;font-size:11px;color:#111;}'+
+    'h1{font-size:20px;font-weight:bold;margin-bottom:4px;}.date{text-align:right;margin-bottom:16px;}'+
+    '.mb{display:flex;gap:12px;align-items:baseline;border-bottom:1px solid #333;padding-bottom:6px;margin-bottom:6px;}'+
+    '.mn{font-size:15px;font-weight:bold;flex:1;}.per{font-size:11px;color:#555;margin-bottom:14px;}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px;}'+
+    'th{background:#e8e8e8;padding:5px 6px;text-align:center;border:1px solid #bbb;font-size:10px;}'+
+    'td{padding:5px 6px;border:1px solid #ccc;font-size:10px;height:20px;}'+
+    '.sum{margin-left:auto;width:220px;}.sum table{width:100%;}'+
+    '.sum td{border:1px solid #bbb;padding:5px 8px;}'+
+    '.lbl{background:#f0f0f0;font-weight:500;}.tot{background:#e8f4e8;font-weight:bold;}'+
+    '.foot{margin-top:20px;font-size:11px;line-height:2.4;}'+
+    '.fl{border-bottom:1px solid #aaa;padding-bottom:2px;margin-bottom:2px;}'+
+    '</style></head><body>'+
+    '<h1>委託販売　精算書</h1><div class="date">'+escHtml(dateStr)+'</div>'+
+    '<div class="mb"><span style="font-size:11px;white-space:nowrap;">会員名（氏名）</span><span class="mn">'+escHtml(name)+'</span></div>'+
+    (periodStr?'<div class="per">対象期間: '+escHtml(periodStr)+'</div>':'')+
+    '<table><thead><tr><th style="width:5%">No.</th><th style="width:36%">商品名 / 在庫コード</th>'+
+    '<th style="width:11%">販売方法</th><th style="width:13%">売価</th>'+
+    '<th style="width:10%">委託料率</th><th style="width:12%">委託料</th><th style="width:13%">支払額</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<div class="sum"><table>'+
+    '<tr><td class="lbl">合計売上</td><td style="text-align:right">¥'+totalSales.toLocaleString()+'</td></tr>'+
+    '<tr><td class="lbl">合計委託料</td><td style="text-align:right">¥'+totalFee.toLocaleString()+'</td></tr>'+
+    '<tr><td class="tot">お支払金額</td><td class="tot" style="text-align:right">¥'+payAmount.toLocaleString()+'</td></tr>'+
+    '</table></div><div class="foot">'+
+    '<div class="fl">支払方法：銀行振込</div><div class="fl">支払予定日：</div><div class="fl">備考：</div>'+
+    '</div></body></html>';
+}
+</script>
+</body>
+</html>
