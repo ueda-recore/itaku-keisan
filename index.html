@@ -284,15 +284,13 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('defaultRate').addEventListener('input', updateGeneratePreview);
 
   // DBに保存イベント
-  var btnSaveToMaster = document.getElementById('btnSaveToMaster');
-  if (btnSaveToMaster) {
-    btnSaveToMaster.addEventListener('click', function(){
-      console.log('保存ボタンクリック');
-      try {
+  setTimeout(function(){
+    var btnSaveToMaster = document.getElementById('btnSaveToMaster');
+    if (btnSaveToMaster) {
+      btnSaveToMaster.addEventListener('click', function(){
+        alert('保存処理を実行します');
         var rateMap = getRateMap();
-        console.log('rateMap:', rateMap);
         var master = loadMaster();
-        console.log('master:', master);
         var added = 0;
         Object.keys(rateMap).forEach(function(name){
           if (rateMap[name] !== null) {
@@ -300,23 +298,15 @@ document.addEventListener('DOMContentLoaded', function(){
             added++;
           }
         });
-        console.log('added:', added);
         if (added > 0) {
           saveMaster(master);
-          showSaveToast('✓ ' + added + ' 件をDBに保存しました');
-          console.log('保存完了');
+          alert(added + ' 件をDBに保存しました');
         } else {
-          showSaveToast('⚠ 料率が入力されていません');
-          console.log('料率なし');
+          alert('料率が入力されていません');
         }
-      } catch(e) {
-        console.error('エラー:', e.message);
-        showSaveToast('エラーが発生しました');
-      }
-    });
-  } else {
-    console.error('btnSaveToMaster が見つかりません');
-  }
+      });
+    }
+  }, 100);
 });
 
 // ============================================================
