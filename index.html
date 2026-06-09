@@ -337,9 +337,18 @@ document.addEventListener('DOMContentLoaded', function(){
               if (!groups[n]) groups[n] = [];
               groups[n].push(r);
             });
+            alert('調整画面を表示します');
+            console.log('groups:', groups);
+            console.log('colProduct:', colProduct);
             buildAdjustUI(groups, colProduct, colPrice, colQty, colFee);
-            document.getElementById('adjustSection').classList.remove('hidden');
-            document.getElementById('adjustSection').scrollIntoView({behavior:'smooth'});
+            alert('buildAdjustUI完了');
+            var adjustSection = document.getElementById('adjustSection');
+            alert('adjustSection: ' + (adjustSection ? 'found' : 'not found'));
+            if (adjustSection) {
+              adjustSection.classList.remove('hidden');
+              adjustSection.scrollIntoView({behavior:'smooth'});
+              alert('表示完了');
+            }
           } else {
             showSaveToast('⚠ 料率が入力されていません');
           }
