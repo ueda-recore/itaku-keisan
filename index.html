@@ -161,6 +161,7 @@
     <div class="section-header"><div class="step-badge">✓</div><h2>生成完了 — ダウンロード</h2></div>
     <div class="section-body">
       <div class="alert alert-info" style="margin-bottom:16px;">📄 PDFボタン → プレビュー表示。「印刷 / PDFで保存」でPDF保存できます。</div>
+      <button class="generate-btn" id="btnDownloadAll" style="background:#4af0c8;margin-bottom:16px;">📥 すべてExcelで一括ダウンロード</button>
       <div class="result-cards" id="resultCards"></div>
     </div>
   </div>
@@ -451,12 +452,14 @@ function generateAll() {
   document.getElementById('resultCards').innerHTML = '';
   generatedFiles = [];
   var names = Object.keys(groups), i = 0;
+  var wb = XLSX.utils.book_new();
 
   function processNext() {
     if (i >= names.length) {
       status.textContent = '✓ '+names.length+' 名分の精算書を生成しました';
       document.getElementById('resultsSection').classList.remove('hidden');
       document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
+      document.getElementById('btnDownloadAll').disabled = false;
       return;
     }
     var name = names[i++];
@@ -467,6 +470,7 @@ function generateAll() {
       var result = buildFiles(name, rows, rate, colProduct, colPrice, colQty, colFee, colMethod, period);
       var fileIdx = generatedFiles.length;
       generatedFiles.push(result);
+      XLSX.utils.book_append_sheet(wb, result.ws, result.sheetName);
       var card = document.createElement('div');
       card.className = 'result-card';
       card.innerHTML =
@@ -475,13 +479,9 @@ function generateAll() {
           '<div class="r-meta">'+rows.length+'件　売上: ¥'+result.totalSales.toLocaleString()+'　委託料: ¥'+result.totalFee.toLocaleString()+'　支払: ¥'+result.payAmount.toLocaleString()+'</div>'+
         '</div>'+
         '<div class="result-actions">'+
-          '<button class="btn-dl btn-xlsx">Excel</button>'+
           '<button class="btn-dl btn-pdf">PDF</button>'+
         '</div>';
       (function(idx){
-        card.querySelector('.btn-xlsx').addEventListener('click', function(){
-          downloadXlsx(generatedFiles[idx].xlsxArr, '委託販売精算書_'+generatedFiles[idx].name+'.xlsx');
-        });
         card.querySelector('.btn-pdf').addEventListener('click', function(){
           showPdfModal(generatedFiles[idx].pdfHtml, generatedFiles[idx].name);
         });
@@ -493,6 +493,11 @@ function generateAll() {
     }
     setTimeout(processNext, 10);
   }
+  document.getElementById('btnDownloadAll').disabled = true;
+  document.getElementById('btnDownloadAll').addEventListener('click', function(){
+    var xlsxArr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    downloadXlsx(xlsxArr, '委託販売精算書_一括.xlsx');
+  }, {once:true});
   processNext();
 }
 
@@ -550,12 +555,11 @@ function buildFiles(consignorName, rows, rate, colProduct, colPrice, colQty, col
   });
   var sr=8+items.length+ec+1;
   [0,1,2].forEach(function(o){ var c=ws[XLSX.utils.encode_cell({r:sr+o,c:7})]; if(c) c.z='¥#,##0'; });
-  XLSX.utils.book_append_sheet(wb, ws, '精算書');
-  var xlsxArr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
 
   // PDF
   var pdfHtml = buildPdfHtml(consignorName, items, totalSales, totalFee, payAmount, dateStr, periodStr);
-  return { name:consignorName, xlsxArr:xlsxArr, pdfHtml:pdfHtml, totalSales:totalSales, totalFee:totalFee, payAmount:payAmount };
+  var sheetName = consignorName.substring(0, 31);
+  return { name:consignorName, ws:ws, sheetName:sheetName, pdfHtml:pdfHtml, totalSales:totalSales, totalFee:totalFee, payAmount:payAmount };
 }
 
 function buildPdfHtml(name, items, totalSales, totalFee, payAmount, dateStr, periodStr) {
