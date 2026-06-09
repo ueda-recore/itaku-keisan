@@ -74,6 +74,17 @@
   #status{font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;text-align:center;padding:8px;}
   .tag{background:rgba(74,240,200,.12);color:var(--accent2);border-radius:4px;padding:2px 8px;font-size:11px;font-family:'DM Mono',monospace;}
   .pct-label{color:var(--text2);font-size:12px;margin-left:4px;}
+  /* Adjust Section */
+  .adjust-group{background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;overflow:hidden;}
+  .adjust-header{padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;font-weight:500;border-bottom:1px solid var(--border);}
+  .adjust-header:hover{background:rgba(200,245,80,.08);}
+  .adjust-toggle{width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;transition:transform 0.2s;}
+  .adjust-toggle.open{transform:rotate(90deg);}
+  .adjust-content{padding:12px 16px;display:none;}
+  .adjust-content.open{display:block;}
+  .adjust-table{width:100%;font-size:12px;border-collapse:collapse;}
+  .adjust-table td{padding:8px;border-bottom:1px solid var(--border);}
+  .adjust-table tr:last-child td{border-bottom:none;}
   /* Toast Notification */
   #saveToast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--accent);color:#000;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:600;z-index:1000;opacity:0;transition:opacity 0.3s;pointer-events:none;}
   #saveToast.show{opacity:1;pointer-events:auto;}
@@ -148,6 +159,18 @@
           <input type="number" id="defaultRate" value="8.8" step="0.1" min="0" max="100" style="width:120px;">
         </div>
         <p style="font-size:11px;color:var(--text2);margin-top:16px;">※ 上で未設定の委託者に適用されます</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section hidden" id="adjustSection">
+    <div class="section-header"><div class="step-badge">3.5</div><h2>商品別料率を調整（オプション）</h2></div>
+    <div class="section-body">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:16px;">商品ごとに委託料率を調整できます。調整不要の場合はスキップして生成できます。</p>
+      <div id="adjustContainer"></div>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <button class="generate-btn" id="btnGenerateWithAdjust" style="flex:1;">⚡ この料率で精算書を生成</button>
+        <button class="generate-btn" id="btnSkipAdjust" style="flex:1;background:#666;">⏭ 調整をスキップして生成</button>
       </div>
     </div>
   </div>
@@ -289,11 +312,8 @@ document.addEventListener('DOMContentLoaded', function(){
     if (btnSaveToMaster) {
       btnSaveToMaster.addEventListener('click', function(){
         try {
-          alert('保存処理を実行します');
           var rateMap = getRateMap();
-          alert('rateMapを取得しました: ' + JSON.stringify(rateMap));
           var master = loadMaster();
-          alert('masterを取得しました: ' + JSON.stringify(master));
           var added = 0;
           Object.keys(rateMap).forEach(function(name){
             if (rateMap[name] !== null) {
@@ -301,19 +321,43 @@ document.addEventListener('DOMContentLoaded', function(){
               added++;
             }
           });
-          alert('added: ' + added);
           if (added > 0) {
             saveMaster(master);
-            alert(added + ' 件をDBに保存しました');
+            showSaveToast('✓ ' + added + ' 件をDBに保存しました');
+
+            // 商品別料率調整画面を表示
+            var colConsignor = document.getElementById('colConsignor').value;
+            var colProduct = document.getElementById('colProduct').value;
+            var colPrice = document.getElementById('colPrice').value;
+            var colQty = document.getElementById('colQty').value;
+            var colFee = document.getElementById('colFee').value;
+            var groups = {};
+            csvRows.forEach(function(r){
+              var n = r[colConsignor] || '（不明）';
+              if (!groups[n]) groups[n] = [];
+              groups[n].push(r);
+            });
+            buildAdjustUI(groups, colProduct, colPrice, colQty, colFee);
+            document.getElementById('adjustSection').classList.remove('hidden');
+            document.getElementById('adjustSection').scrollIntoView({behavior:'smooth'});
           } else {
-            alert('料率が入力されていません');
+            showSaveToast('⚠ 料率が入力されていません');
           }
         } catch(e) {
-          alert('エラーが発生しました: ' + e.message + '\n\n' + e.stack);
+          alert('エラー: ' + e.message);
         }
       });
     }
   }, 100);
+
+  // 調整画面のボタン
+  document.getElementById('btnGenerateWithAdjust').addEventListener('click', function(){
+    document.getElementById('btnGenerate').click();
+  });
+  document.getElementById('btnSkipAdjust').addEventListener('click', function(){
+    adjustedRates = {};
+    document.getElementById('btnGenerate').click();
+  });
 });
 
 // ============================================================
@@ -517,6 +561,71 @@ function showSaveToast(message) {
   }, 2500);
 }
 
+// 商品別料率調整
+var adjustedRates = {};
+
+function buildAdjustUI(groups, colProduct, colPrice, colQty, colFee) {
+  var container = document.getElementById('adjustContainer');
+  container.innerHTML = '';
+  adjustedRates = {};
+
+  Object.keys(groups).forEach(function(consignor){
+    var rows = groups[consignor];
+    var group = document.createElement('div');
+    group.className = 'adjust-group';
+
+    var header = document.createElement('div');
+    header.className = 'adjust-header';
+    header.innerHTML = '<span class="adjust-toggle">▶</span><span>' + escHtml(consignor) + '</span>';
+
+    var content = document.createElement('div');
+    content.className = 'adjust-content';
+
+    var table = document.createElement('table');
+    table.className = 'adjust-table';
+    var thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>商品</th><th>売価</th><th>委託料率（%）</th></tr>';
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    rows.forEach(function(r, idx){
+      var product = r[colProduct] || '商品' + (idx+1);
+      var price = r[colPrice] || '0';
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + escHtml(product) + '</td>' +
+        '<td style="text-align:right;">¥' + escHtml(price) + '</td>' +
+        '<td><input class="rate-adjust-input" type="number" value="" placeholder="未設定" step="0.1" min="0" max="100" style="width:80px;"></td>';
+      tbody.appendChild(tr);
+
+      tr.dataset.consignor = consignor;
+      tr.dataset.product = product;
+      var input = tr.querySelector('.rate-adjust-input');
+      input.addEventListener('change', function(){
+        var key = consignor + '|' + product;
+        adjustedRates[key] = parseFloat(this.value) || null;
+      });
+    });
+    table.appendChild(tbody);
+    content.appendChild(table);
+
+    header.addEventListener('click', function(){
+      var toggle = header.querySelector('.adjust-toggle');
+      toggle.classList.toggle('open');
+      content.classList.toggle('open');
+    });
+
+    group.appendChild(header);
+    group.appendChild(content);
+    container.appendChild(group);
+  });
+}
+
+function getAdjustedRate(consignor, product) {
+  var key = consignor + '|' + product;
+  return adjustedRates[key];
+}
+
 function getRateMap() {
   var map = {};
   document.querySelectorAll('#consignorsList tr').forEach(function(tr){
@@ -629,11 +738,17 @@ function buildFiles(consignorName, rows, rate, colProduct, colPrice, colQty, col
     var price = parseFloat(String(r[colPrice]||'0').replace(/[¥,￥]/g,''))||0;
     var qty   = parseInt(r[colQty]||'1')||1;
     var sub   = price*qty;
-    var fee   = hasFeeCol ? (parseFloat(String(r[colFee]||'0').replace(/[¥,￥]/g,''))||0) : Math.round(sub*rate);
+    var product = r[colProduct]||'';
+
+    // 商品別調整レートがあるか確認
+    var adjustedRate = getAdjustedRate(consignorName, product);
+    var useRate = adjustedRate !== null && adjustedRate !== undefined ? adjustedRate / 100 : rate;
+
+    var fee   = hasFeeCol ? (parseFloat(String(r[colFee]||'0').replace(/[¥,￥]/g,''))||0) : Math.round(sub*useRate);
     totalSales += sub;
-    return { no:idx+1, product:r[colProduct]||'',
+    return { no:idx+1, product:product,
       method:(colMethod&&colMethod!=='（選択しない）')?(r[colMethod]||''):'',
-      qty:qty, subtotal:sub, rate:hasFeeCol?(sub>0?fee/sub:rate):rate, fee:fee, pay:sub-fee };
+      qty:qty, subtotal:sub, rate:hasFeeCol?(sub>0?fee/sub:useRate):useRate, fee:fee, pay:sub-fee };
   });
   var totalFee = items.reduce(function(s,it){return s+it.fee;},0);
   var payAmount = totalSales - totalFee;
