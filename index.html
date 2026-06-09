@@ -98,23 +98,6 @@
 
 <div class="container">
   <div class="section">
-    <div class="section-header"><div class="step-badge">📋</div><h2>委託者マスター管理</h2></div>
-    <div class="section-body">
-      <div style="display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:16px;">
-        <div class="field-row"><label>委託者名</label><input type="text" id="masterName" placeholder="委託者名を入力"></div>
-        <div class="field-row"><label>委託料率（%）</label><input type="number" id="masterRate" placeholder="8.8" step="0.1" min="0" max="100" style="width:100px;"></div>
-        <div style="display:flex;align-items:flex-end;gap:8px;"><button class="generate-btn" id="btnAddMaster" style="flex:1;padding:9px;font-size:13px;">追加</button></div>
-      </div>
-      <div class="preview-scroll" id="masterTableWrap" style="max-height:200px;">
-        <table class="rate-table">
-          <thead><tr><th>委託者名</th><th>委託料率</th><th></th></tr></thead>
-          <tbody id="masterList"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="section">
     <div class="section-header"><div class="step-badge">1</div><h2>ファイルを読み込む</h2></div>
     <div class="section-body">
       <div class="drop-zone" id="dropZone">
@@ -154,7 +137,7 @@
         <tbody id="consignorsList"></tbody>
       </table>
       <button class="btn-add" id="btnAddConsignor">＋ 委託者を手動追加</button>
-      <button class="btn-add" id="btnSaveToMaster" style="border-color:var(--accent2);color:var(--accent2);">💾 編集内容をマスターに保存</button>
+      <button class="btn-add" id="btnSaveToMaster" style="border-color:var(--accent2);color:var(--accent2);">💾 この設定をDBに保存</button>
       <hr class="divider">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="field-row" style="flex:0 0 auto;">
@@ -268,20 +251,6 @@ var generatedFiles = [];
 
 // 初期化（DOMContentLoaded）
 document.addEventListener('DOMContentLoaded', function(){
-  // マスター初期化
-  renderMasterList();
-  document.getElementById('btnAddMaster').addEventListener('click', function(){
-    var name = document.getElementById('masterName').value.trim();
-    var rate = parseFloat(document.getElementById('masterRate').value);
-    if (!name) { alert('委託者名を入力してください'); return; }
-    if (isNaN(rate) || rate < 0 || rate > 100) { alert('料率は0-100の数値を入力してください'); return; }
-    var master = loadMaster();
-    master[name] = rate;
-    saveMaster(master);
-    document.getElementById('masterName').value = '';
-    document.getElementById('masterRate').value = '';
-  });
-
   // モーダルイベント
   document.getElementById('btnModalClose').addEventListener('click', function() {
     document.getElementById('pdfModal').classList.add('hidden');
@@ -442,15 +411,52 @@ function setupRates() {
 }
 
 function makeRateRow(name, count, rate) {
+  var master = loadMaster();
+  var masterOptions = ['（新規）'];
+  Object.keys(master).sort().forEach(function(k){
+    masterOptions.push(k + '（' + master[k] + '%）');
+  });
+
   var tr = document.createElement('tr');
   tr.setAttribute('data-name', name);
   tr.innerHTML =
     '<td class="name-cell">'+escHtml(name)+'</td>'+
     '<td class="count-cell"><span class="tag">'+escHtml(String(count||0))+'件</span></td>'+
-    '<td><input class="rate-input" type="number" value="'+escHtml(rate||'')+'" placeholder="8.8" step="0.1" min="0" max="100"><span class="pct-label">%</span></td>'+
+    '<td>'+
+      '<select class="rate-select" style="width:140px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;">'+
+        masterOptions.map(function(opt){ return '<option value="'+escHtml(opt)+'">'+escHtml(opt)+'</option>'; }).join('')+
+      '</select>'+
+    '</td>'+
+    '<td><input class="rate-input" type="number" value="'+escHtml(rate||'')+'" placeholder="8.8" step="0.1" min="0" max="100" style="width:80px;"><span class="pct-label">%</span></td>'+
     '<td><button class="btn-icon" title="削除">✕</button></td>';
+
+  var select = tr.querySelector('.rate-select');
+  var input = tr.querySelector('.rate-input');
+
+  if (rate) {
+    var found = false;
+    for (var i = 1; i < masterOptions.length; i++) {
+      if (masterOptions[i].includes(rate + '%')) {
+        select.value = masterOptions[i];
+        found = true;
+        break;
+      }
+    }
+  }
+
+  select.addEventListener('change', function(){
+    if (this.value === '（新規）') {
+      input.value = '';
+      input.focus();
+    } else {
+      var match = this.value.match(/（(\d+(?:\.\d+)?)%）$/);
+      if (match) input.value = match[1];
+    }
+    updateGeneratePreview();
+  });
+
   tr.querySelector('.btn-icon').addEventListener('click', function(){ tr.remove(); });
-  tr.querySelector('.rate-input').addEventListener('input', updateGeneratePreview);
+  input.addEventListener('input', updateGeneratePreview);
   return tr;
 }
 
@@ -474,13 +480,12 @@ document.getElementById('btnSaveToMaster').addEventListener('click', function(){
   var added = 0;
   Object.keys(rateMap).forEach(function(name){
     if (rateMap[name] !== null) {
-      var rate = Math.round(rateMap[name] * 100 * 10) / 10;
-      master[name] = rate;
+      master[name] = Math.round(rateMap[name] * 1000) / 10;
       added++;
     }
   });
   saveMaster(master);
-  alert(added + ' 件の委託者料率をマスターに保存しました');
+  alert(added + ' 件の委託者料率をDBに保存しました');
 });
 
 function getRateMap() {
