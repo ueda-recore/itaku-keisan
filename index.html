@@ -98,6 +98,23 @@
 
 <div class="container">
   <div class="section">
+    <div class="section-header"><div class="step-badge">📋</div><h2>委託者マスター管理</h2></div>
+    <div class="section-body">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:16px;">
+        <div class="field-row"><label>委託者名</label><input type="text" id="masterName" placeholder="委託者名を入力"></div>
+        <div class="field-row"><label>委託料率（%）</label><input type="number" id="masterRate" placeholder="8.8" step="0.1" min="0" max="100" style="width:100px;"></div>
+        <div style="display:flex;align-items:flex-end;gap:8px;"><button class="generate-btn" id="btnAddMaster" style="flex:1;padding:9px;font-size:13px;">追加</button></div>
+      </div>
+      <div class="preview-scroll" id="masterTableWrap" style="max-height:200px;">
+        <table class="rate-table">
+          <thead><tr><th>委託者名</th><th>委託料率</th><th></th></tr></thead>
+          <tbody id="masterList"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-header"><div class="step-badge">1</div><h2>ファイルを読み込む</h2></div>
     <div class="section-body">
       <div class="drop-zone" id="dropZone">
@@ -137,6 +154,7 @@
         <tbody id="consignorsList"></tbody>
       </table>
       <button class="btn-add" id="btnAddConsignor">＋ 委託者を手動追加</button>
+      <button class="btn-add" id="btnSaveToMaster" style="border-color:var(--accent2);color:var(--accent2);">💾 編集内容をマスターに保存</button>
       <hr class="divider">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="field-row" style="flex:0 0 auto;">
@@ -181,11 +199,41 @@
 
 <script>
 // ============================================================
-// Helpers
+// Helpers & Master Data
 // ============================================================
 function escHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+var MASTER_KEY = 'consignorMaster';
+
+function loadMaster() {
+  var data = localStorage.getItem(MASTER_KEY);
+  return data ? JSON.parse(data) : {};
+}
+
+function saveMaster(master) {
+  localStorage.setItem(MASTER_KEY, JSON.stringify(master));
+  renderMasterList();
+}
+
+function renderMasterList() {
+  var master = loadMaster();
+  var tbody = document.getElementById('masterList');
+  tbody.innerHTML = '';
+  Object.keys(master).sort().forEach(function(name){
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td class="name-cell">'+escHtml(name)+'</td>'+
+      '<td class="count-cell">'+escHtml(String(master[name]))+'%</td>'+
+      '<td><button class="btn-icon" title="削除">✕</button></td>';
+    tr.querySelector('.btn-icon').addEventListener('click', function(){
+      delete master[name];
+      saveMaster(master);
+    });
+    tbody.appendChild(tr);
+  });
 }
 
 function downloadXlsx(xlsxArr, filename) {
@@ -229,6 +277,22 @@ document.addEventListener('DOMContentLoaded', function() {
 var csvHeaders = [];
 var csvRows = [];
 var generatedFiles = [];
+
+// Master 初期化
+document.addEventListener('DOMContentLoaded', function(){
+  renderMasterList();
+  document.getElementById('btnAddMaster').addEventListener('click', function(){
+    var name = document.getElementById('masterName').value.trim();
+    var rate = parseFloat(document.getElementById('masterRate').value);
+    if (!name) { alert('委託者名を入力してください'); return; }
+    if (isNaN(rate) || rate < 0 || rate > 100) { alert('料率は0-100の数値を入力してください'); return; }
+    var master = loadMaster();
+    master[name] = rate;
+    saveMaster(master);
+    document.getElementById('masterName').value = '';
+    document.getElementById('masterRate').value = '';
+  });
+});
 
 // ============================================================
 // Upload
@@ -363,12 +427,14 @@ function setupRates() {
     var inp = tr.querySelector('.rate-input');
     if (inp) existing[tr.getAttribute('data-name')] = inp.value;
   });
+  var master = loadMaster();
   var counts = {};
   csvRows.forEach(function(r){ var n=r[colConsignor]||'（不明）'; counts[n]=(counts[n]||0)+1; });
   var tbody = document.getElementById('consignorsList');
   tbody.innerHTML = '';
   Object.keys(counts).forEach(function(name){
-    tbody.appendChild(makeRateRow(name, counts[name], existing[name]||''));
+    var rate = existing[name] || (master[name] !== undefined ? String(master[name]) : '');
+    tbody.appendChild(makeRateRow(name, counts[name], rate));
   });
   document.getElementById('rateSection').classList.remove('hidden');
   document.getElementById('generateSection').classList.remove('hidden');
@@ -401,6 +467,21 @@ document.getElementById('btnAddConsignor').addEventListener('click', function(){
 });
 
 document.getElementById('defaultRate').addEventListener('input', updateGeneratePreview);
+
+document.getElementById('btnSaveToMaster').addEventListener('click', function(){
+  var rateMap = getRateMap();
+  var master = loadMaster();
+  var added = 0;
+  Object.keys(rateMap).forEach(function(name){
+    if (rateMap[name] !== null) {
+      var rate = Math.round(rateMap[name] * 100 * 10) / 10;
+      master[name] = rate;
+      added++;
+    }
+  });
+  saveMaster(master);
+  alert(added + ' 件の委託者料率をマスターに保存しました');
+});
 
 function getRateMap() {
   var map = {};
