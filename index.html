@@ -288,21 +288,28 @@ document.addEventListener('DOMContentLoaded', function(){
     var btnSaveToMaster = document.getElementById('btnSaveToMaster');
     if (btnSaveToMaster) {
       btnSaveToMaster.addEventListener('click', function(){
-        alert('保存処理を実行します');
-        var rateMap = getRateMap();
-        var master = loadMaster();
-        var added = 0;
-        Object.keys(rateMap).forEach(function(name){
-          if (rateMap[name] !== null) {
-            master[name] = Math.round(rateMap[name] * 1000) / 10;
-            added++;
+        try {
+          alert('保存処理を実行します');
+          var rateMap = getRateMap();
+          alert('rateMapを取得しました: ' + JSON.stringify(rateMap));
+          var master = loadMaster();
+          alert('masterを取得しました: ' + JSON.stringify(master));
+          var added = 0;
+          Object.keys(rateMap).forEach(function(name){
+            if (rateMap[name] !== null) {
+              master[name] = Math.round(rateMap[name] * 1000) / 10;
+              added++;
+            }
+          });
+          alert('added: ' + added);
+          if (added > 0) {
+            saveMaster(master);
+            alert(added + ' 件をDBに保存しました');
+          } else {
+            alert('料率が入力されていません');
           }
-        });
-        if (added > 0) {
-          saveMaster(master);
-          alert(added + ' 件をDBに保存しました');
-        } else {
-          alert('料率が入力されていません');
+        } catch(e) {
+          alert('エラーが発生しました: ' + e.message + '\n\n' + e.stack);
         }
       });
     }
