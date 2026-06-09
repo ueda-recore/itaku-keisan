@@ -258,18 +258,6 @@ function showPdfModal(htmlStr, name) {
   document.getElementById('pdfModal').classList.remove('hidden');
 }
 
-// モーダルのイベント（DOMContentLoaded後に確実に登録）
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('btnModalClose').addEventListener('click', function() {
-    document.getElementById('pdfModal').classList.add('hidden');
-    document.getElementById('pdfIframe').srcdoc = '';
-  });
-  document.getElementById('btnModalPrint').addEventListener('click', function() {
-    var iframe = document.getElementById('pdfIframe');
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-  });
-});
 
 // ============================================================
 // State
@@ -278,8 +266,9 @@ var csvHeaders = [];
 var csvRows = [];
 var generatedFiles = [];
 
-// Master 初期化
+// 初期化（DOMContentLoaded）
 document.addEventListener('DOMContentLoaded', function(){
+  // マスター初期化
   renderMasterList();
   document.getElementById('btnAddMaster').addEventListener('click', function(){
     var name = document.getElementById('masterName').value.trim();
@@ -291,6 +280,17 @@ document.addEventListener('DOMContentLoaded', function(){
     saveMaster(master);
     document.getElementById('masterName').value = '';
     document.getElementById('masterRate').value = '';
+  });
+
+  // モーダルイベント
+  document.getElementById('btnModalClose').addEventListener('click', function() {
+    document.getElementById('pdfModal').classList.add('hidden');
+    document.getElementById('pdfIframe').srcdoc = '';
+  });
+  document.getElementById('btnModalPrint').addEventListener('click', function() {
+    var iframe = document.getElementById('pdfIframe');
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
   });
 });
 
