@@ -575,6 +575,11 @@ var adjustedRates = {};
 
 function buildAdjustUI(groups, colProduct, colPrice, colQty, colFee) {
   var container = document.getElementById('adjustContainer');
+  if (!container) {
+    alert('adjustContainer が見つかりません');
+    console.error('adjustContainer is null');
+    return;
+  }
   container.innerHTML = '';
   adjustedRates = {};
 
