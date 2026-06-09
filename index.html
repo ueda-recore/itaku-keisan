@@ -133,7 +133,7 @@
     <div class="section-header"><div class="step-badge">3</div><h2>委託者ごとの委託料率を設定</h2></div>
     <div class="section-body">
       <table class="rate-table">
-        <thead><tr><th>委託者名</th><th>販売件数</th><th>委託料率（%）</th><th></th></tr></thead>
+        <thead><tr><th>委託者名</th><th>販売件数</th><th>登録済委託料率</th><th>委託料率（%）</th><th></th></tr></thead>
         <tbody id="consignorsList"></tbody>
       </table>
       <button class="btn-add" id="btnAddConsignor">＋ 委託者を手動追加</button>
@@ -423,11 +423,11 @@ function makeRateRow(name, count, rate) {
     '<td class="name-cell">'+escHtml(name)+'</td>'+
     '<td class="count-cell"><span class="tag">'+escHtml(String(count||0))+'件</span></td>'+
     '<td>'+
-      '<select class="rate-select" style="width:140px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;">'+
+      '<select class="rate-select" style="width:160px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;">'+
         masterOptions.map(function(opt){ return '<option value="'+escHtml(opt)+'">'+escHtml(opt)+'</option>'; }).join('')+
       '</select>'+
     '</td>'+
-    '<td><input class="rate-input" type="number" value="'+escHtml(rate||'')+'" placeholder="8.8" step="0.1" min="0" max="100" style="width:80px;"><span class="pct-label">%</span></td>'+
+    '<td><input class="rate-input" type="number" value="'+escHtml(rate||'')+'" placeholder="8.8" step="0.1" min="0" max="100" style="width:90px;"><span class="pct-label">%</span></td>'+
     '<td><button class="btn-icon" title="削除">✕</button></td>';
 
   var select = tr.querySelector('.rate-select');
@@ -442,6 +442,11 @@ function makeRateRow(name, count, rate) {
         break;
       }
     }
+    if (!found) {
+      select.value = '（新規）';
+    }
+  } else {
+    select.value = '（新規）';
   }
 
   select.addEventListener('change', function(){
