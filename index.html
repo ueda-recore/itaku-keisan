@@ -412,50 +412,39 @@ function setupRates() {
 
 function makeRateRow(name, count, rate) {
   var master = loadMaster();
-  var masterOptions = ['（新規）'];
-  Object.keys(master).sort().forEach(function(k){
-    masterOptions.push(k + '（' + master[k] + '%）');
-  });
+  var masterKeys = Object.keys(master).sort();
 
   var tr = document.createElement('tr');
   tr.setAttribute('data-name', name);
+  var selectHtml = '<select class="rate-select" style="width:160px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;">';
+  selectHtml += '<option value="">（新規）</option>';
+  masterKeys.forEach(function(k){
+    selectHtml += '<option value="'+escHtml(k)+'">'+escHtml(k)+'（'+master[k]+'%）</option>';
+  });
+  selectHtml += '</select>';
+
   tr.innerHTML =
     '<td class="name-cell">'+escHtml(name)+'</td>'+
     '<td class="count-cell"><span class="tag">'+escHtml(String(count||0))+'件</span></td>'+
-    '<td>'+
-      '<select class="rate-select" style="width:160px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;">'+
-        masterOptions.map(function(opt){ return '<option value="'+escHtml(opt)+'">'+escHtml(opt)+'</option>'; }).join('')+
-      '</select>'+
-    '</td>'+
+    '<td>'+selectHtml+'</td>'+
     '<td><input class="rate-input" type="number" value="'+escHtml(rate||'')+'" placeholder="8.8" step="0.1" min="0" max="100" style="width:90px;"><span class="pct-label">%</span></td>'+
     '<td><button class="btn-icon" title="削除">✕</button></td>';
 
   var select = tr.querySelector('.rate-select');
   var input = tr.querySelector('.rate-input');
 
-  if (rate) {
-    var found = false;
-    for (var i = 1; i < masterOptions.length; i++) {
-      if (masterOptions[i].includes(rate + '%')) {
-        select.value = masterOptions[i];
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      select.value = '（新規）';
-    }
-  } else {
-    select.value = '（新規）';
+  // 委託者名がマスターに存在すれば自動選択
+  if (master[name] !== undefined) {
+    select.value = name;
+    if (!rate) input.value = String(master[name]);
   }
 
   select.addEventListener('change', function(){
-    if (this.value === '（新規）') {
+    if (this.value === '') {
       input.value = '';
       input.focus();
     } else {
-      var match = this.value.match(/（(\d+(?:\.\d+)?)%）$/);
-      if (match) input.value = match[1];
+      input.value = String(master[this.value]);
     }
     updateGeneratePreview();
   });
