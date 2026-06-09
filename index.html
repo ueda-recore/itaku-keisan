@@ -325,7 +325,7 @@ function setupMapping() {
     var match = csvHeaders.find(function(h){
       return autoMap[id].some(function(k){ return h.toLowerCase().includes(k.toLowerCase()); });
     });
-    if (match) sel.value = match;
+    if (match && id !== 'colFee') sel.value = match;
   });
   var now = new Date();
   document.getElementById('periodInput').value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
